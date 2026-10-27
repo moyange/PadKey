@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="58dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="10dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="start"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.16"
+                android:text="PADKEY"
+                android:textColor="@color/accent"
+                android:textSize="15sp" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="15dp"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="@color/hairline" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.12"
+                android:text="75% · TOUCHPAD"
+                android:textColor="@color/text_muted"
+                android:textSize="9sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="end"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/statusDot"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:background="@drawable/dot_status" />
+
+            <TextView
+                android:id="@+id/statusText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="未连接"
+                android:textColor="#9FB0C6"
+                android:textSize="11sp" />
+
+            <TextView
+                android:id="@+id/rttText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="7dp"
+                android:text=""
+                android:textColor="@color/text_muted"
+                android:textSize="10sp" />
+
+            <ImageButton
+                android:id="@+id/powerButton"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="4dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="电源"
+                android:padding="11dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_power"
+                android:tint="@color/text_muted" />
+
+            <ImageButton
+                android:id="@+id/settingsButton"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="4dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="设置"
+                android:padding="11dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_settings"
+                android:tint="@color/text_muted" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/hairline" />
+
+    <LinearLayout
+        android:id="@+id/contentRow"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="24dp"
+        android:animateLayoutChanges="true"
+        android:splitMotionEvents="true">
+
+        <com.padkey.app.KeyboardView
+            android:id="@+id/keyboardView"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="3.0" />
+
+        <com.padkey.app.TouchpadView
+            android:id="@+id/touchpadView"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1.12" />
+
+        <com.padkey.app.TouchpadHandleView
+            android:id="@+id/touchpadHandle"
+            android:layout_width="28dp"
+            android:layout_height="96dp"
+            android:layout_gravity="center_vertical"
+            android:layout_marginStart="6dp" />
+    </LinearLayout>
+</LinearLayout>

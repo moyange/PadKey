@@ -1,0 +1,27 @@
+# local build tools / SDKs
+tools/
+dist/
+server/bin/
+server/obj/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+.idea/
+*.iml
+*.user
+*.log
+inputprobe-result.json
+
+# binaries / signing material
+*.exe
+*.dll
+*.apk
+*.pdb
+*.jks
+*.keystore
+*.pfx
+
+# IDE
+.vs/
+.vscode/
