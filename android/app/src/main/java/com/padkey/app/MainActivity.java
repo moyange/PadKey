@@ -11,6 +11,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -39,6 +40,7 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
     private static final String P_NATURAL = "natural";
     private static final String P_TOUCHPAD_HIDDEN = "touchpadHidden";
     private static final String P_WAKE_MACS = "wakeMacs";
+    private static final String P_BT_KEYBOARD = "btKeyboard";
 
     private ConnectionManager connection;
     private KeyboardView keyboard;
@@ -63,6 +65,8 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
     private String pcName = "PC";
     private boolean pcLocked;
     private String[] wakeMacs = new String[0];
+    private boolean btKeyboardEnabled;
+    private boolean settingsOpen;
     private boolean resumed;
 
     @Override
@@ -185,6 +189,22 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
                             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                             | View.SYSTEM_UI_FLAG_FULLSCREEN);
         }
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (btKeyboardEnabled && !settingsOpen && connection != null && connection.isConnected()) {
+            int hid = AndroidKeyMap.toHid(event.getKeyCode());
+            if (hid != 0) {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    if (event.getRepeatCount() == 0) connection.sendKey(hid, true);
+                } else if (event.getAction() == KeyEvent.ACTION_UP) {
+                    connection.sendKey(hid, false);
+                }
+                return true;
+            }
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     // ---- ConnectionManager.Listener -----------------------------------------
@@ -380,6 +400,7 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
         scrollSpeed = prefs.getFloat(P_SCROLL, 1.0f);
         haptics = prefs.getBoolean(P_HAPTICS, true);
         naturalScroll = prefs.getBoolean(P_NATURAL, true);
+        btKeyboardEnabled = prefs.getBoolean(P_BT_KEYBOARD, true);
     }
 
     private void saveSettings() {
@@ -391,6 +412,7 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
                 .putFloat(P_SCROLL, scrollSpeed)
                 .putBoolean(P_HAPTICS, haptics)
                 .putBoolean(P_NATURAL, naturalScroll)
+                .putBoolean(P_BT_KEYBOARD, btKeyboardEnabled)
                 .apply();
     }
 
@@ -403,6 +425,7 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
     }
 
     private void showSettings() {
+        if (connection != null) connection.releaseAll();
         float d = getResources().getDisplayMetrics().density;
         int pad = (int) (22 * d);
 
@@ -556,8 +579,17 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
         naturalSwitch.setTrackTintList(track);
         root.addView(naturalSwitch, marginParams(d, 4));
 
+        Switch btSwitch = new Switch(this);
+        btSwitch.setText("外接蓝牙键盘转发");
+        btSwitch.setTextColor(0xFFE9EFF8);
+        btSwitch.setTextSize(13);
+        btSwitch.setChecked(btKeyboardEnabled);
+        btSwitch.setThumbTintList(cyan);
+        btSwitch.setTrackTintList(track);
+        root.addView(btSwitch, marginParams(d, 10));
+
         TextView tip = new TextView(this);
-        tip.setText("提示：双击触摸板后不松手即可拖动窗口；长按也可以拖动。三指轻点 = 中键。");
+        tip.setText("提示：双击触摸板后不松手即可拖动窗口；长按也可以拖动。三指轻点 = 中键。\n外接蓝牙键盘：先在 Android 设置中配对，开启上面的开关后实体按键会转发到电脑。");
         tip.setTextColor(0xFF66758A);
         tip.setTextSize(11);
         tip.setLineSpacing(0, 1.2f);
@@ -588,6 +620,8 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
             scrollSpeed = scroll[0];
             haptics = hapticSwitch.isChecked();
             naturalScroll = naturalSwitch.isChecked();
+            btKeyboardEnabled = btSwitch.isChecked();
+            if (connection != null) connection.releaseAll();
             saveSettings();
             applySettingsToViews();
             if (connection != null) {
@@ -598,6 +632,8 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
             dialog.dismiss();
             Toast.makeText(this, "已保存，正在连接", Toast.LENGTH_SHORT).show();
         }));
+        dialog.setOnDismissListener(ignored -> settingsOpen = false);
+        settingsOpen = true;
         dialog.show();
         styleDialog(dialog, d);
     }

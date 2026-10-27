@@ -9,6 +9,7 @@
 - 开机启动项 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\PadKeyUsbWatch` 已删除
 - `adb server` 已执行 `adb kill-server`，TCP 5037 不再监听
 - PadKey 安全输入服务 `PadKeySecure` 仍在运行（与 adb 无关）
+- 2026-10-28 00:02：安装 v1.4.0 测试外接蓝牙键盘时临时启动过 adb；测试完成后再次执行 `adb kill-server` 并停止看护。
 
 ## 为什么停
 
