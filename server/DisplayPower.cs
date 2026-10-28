@@ -24,11 +24,33 @@ internal static class DisplayPower
         try
         {
             SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED);
-            // -1 = turn the monitor back on; 2 = off, 1 = low power.
-            PostMessage(HWND_BROADCAST, WM_SYSCOMMAND, SC_MONITORPOWER, new IntPtr(-1));
+            MonitorOn();
             Thread.Sleep(40);
             SetThreadExecutionState(ES_CONTINUOUS);
         }
         catch { }
+    }
+
+    public static void MonitorOn()
+    {
+        try { PostMessage(HWND_BROADCAST, WM_SYSCOMMAND, SC_MONITORPOWER, new IntPtr(-1)); }
+        catch { }
+    }
+
+    public static void MonitorOff()
+    {
+        try { PostMessage(HWND_BROADCAST, WM_SYSCOMMAND, SC_MONITORPOWER, new IntPtr(2)); }
+        catch { }
+    }
+
+    // Called from the dedicated fake-sleep thread; execution state is per-thread.
+    internal static void HoldSystemAwake()
+    {
+        try { SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED); } catch { }
+    }
+
+    internal static void ReleaseSystemAwake()
+    {
+        try { SetThreadExecutionState(ES_CONTINUOUS); } catch { }
     }
 }

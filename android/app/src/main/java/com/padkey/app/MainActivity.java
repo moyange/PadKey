@@ -273,50 +273,30 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
     @Override
     public void onPowerResult(boolean ok, String message) {
         runOnUiThread(() -> {
-            if (ok) Toast.makeText(this, "已请求电脑休眠", Toast.LENGTH_SHORT).show();
+            if (ok) Toast.makeText(this, "电脑显示器已关闭", Toast.LENGTH_SHORT).show();
             else Toast.makeText(this, "电源操作失败: " + message, Toast.LENGTH_LONG).show();
         });
     }
 
     private void showPowerDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle("电脑电源")
-                .setItems(new CharSequence[]{"让电脑休眠", "唤醒电脑"}, (dialog, which) -> {
-                    if (which == 0) confirmSleep();
-                    else wakePc();
-                })
-                .setNegativeButton("取消", null)
-                .show();
+        // WOL is intentionally disabled: fake sleep keeps the PC and network alive.
+        confirmSleep();
     }
 
     private void confirmSleep() {
         if (connection == null || !connection.isConnected()) {
-            Toast.makeText(this, "电脑未连接，无法休眠", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "电脑未连接，无法假休眠", Toast.LENGTH_SHORT).show();
             return;
         }
         new AlertDialog.Builder(this)
-                .setTitle("电脑休眠")
-                .setMessage("电脑将立即进入睡眠。唤醒需要电脑支持 Wake-on-LAN，并且平板仍在同一 Wi-Fi。")
-                .setPositiveButton("休眠", (dialog, which) -> {
+                .setTitle("电脑假休眠")
+                .setMessage("仅关闭电脑显示器，电脑保持运行、网络和服务端不中断。按平板任意键或触摸板即可唤醒显示。")
+                .setPositiveButton("关闭显示器", (dialog, which) -> {
                     connection.sendPower("sleep");
-                    Toast.makeText(this, "已发送休眠请求", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "已发送假休眠请求", Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("取消", null)
                 .show();
-    }
-
-    private void wakePc() {
-        if (wakeMacs.length == 0) {
-            Toast.makeText(this, "还没有电脑网卡地址，请先连接一次 PadKey", Toast.LENGTH_LONG).show();
-            return;
-        }
-        String targetHost = host;
-        new Thread(() -> {
-            int sent = WakeOnLan.wake(targetHost, wakeMacs);
-            runOnUiThread(() -> Toast.makeText(this,
-                    sent > 0 ? "已发送 Wake-on-LAN 唤醒包" : "唤醒包发送失败，请确认平板连接 Wi-Fi",
-                    Toast.LENGTH_LONG).show());
-        }, "padkey-wol").start();
     }
 
     private void showConnectedHeader() {

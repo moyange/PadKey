@@ -4,6 +4,9 @@ namespace PadKey;
 
 internal static class PowerControl
 {
+    private static readonly object FakeGate = new();
+    private static CancellationTokenSource? _fakeCts;
+    private static Thread? _fakeThread;
     [DllImport("powrprof.dll", SetLastError = true)]
     private static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);
 
@@ -32,6 +35,48 @@ internal static class PowerControl
         public uint PrivilegeCount;
         public LUID Luid;
         public uint Attributes;
+    }
+
+    /// <summary>Fake sleep: keep Windows running, but turn the monitor off.</summary>
+    public static void FakeSleep()
+    {
+        lock (FakeGate)
+        {
+            if (_fakeThread is null)
+            {
+                _fakeCts = new CancellationTokenSource();
+                CancellationToken token = _fakeCts.Token;
+                _fakeThread = new Thread(() =>
+                {
+                    DisplayPower.HoldSystemAwake();
+                    try
+                    {
+                        while (!token.IsCancellationRequested) Thread.Sleep(500);
+                    }
+                    finally
+                    {
+                        DisplayPower.ReleaseSystemAwake();
+                    }
+                })
+                {
+                    IsBackground = true,
+                    Name = "PadKeyFakeSleep"
+                };
+                _fakeThread.Start();
+            }
+        }
+        DisplayPower.MonitorOff();
+        Log.Info("假休眠：保持系统运行，仅关闭显示器");
+    }
+
+    public static void WakeFromFakeSleep()
+    {
+        lock (FakeGate)
+        {
+            _fakeCts?.Cancel();
+            _fakeCts = null;
+            _fakeThread = null;
+        }
     }
 
     public static bool Sleep()

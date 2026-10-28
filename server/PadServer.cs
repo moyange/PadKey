@@ -415,6 +415,7 @@ public sealed class PadServer : IAsyncDisposable
         Interlocked.Increment(ref _messages);
         ClientMessage? msg = Protocol.Parse(text);
         if (msg?.T is "key" or "button" or "move" or "scroll") {
+            PowerControl.WakeFromFakeSleep();
             long nowInput = Environment.TickCount64;
             if (nowInput - _lastInputAt > 1200) DisplayPower.Wake();
             _lastInputAt = nowInput;
@@ -509,8 +510,8 @@ public sealed class PadServer : IAsyncDisposable
                 _ = Task.Run(async () =>
                 {
                     await Task.Delay(500);
-                    if (_cfg.DryRun) Log.Info("[dry-run] 不执行休眠");
-                    else PowerControl.Sleep();
+                    if (_cfg.DryRun) Log.Info("[dry-run] 不执行假休眠");
+                    else PowerControl.FakeSleep();
                 });
                 break;
             }

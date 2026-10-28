@@ -6,7 +6,10 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Sends a Wake-on-LAN magic packet to the PC's cached NIC MAC addresses. */
+/**
+ * Wake-on-LAN is disabled for fake sleep: the PC stays running, so no magic packet is needed.
+ * Kept for a future real-sleep mode.
+ */
 public final class WakeOnLan {
     private WakeOnLan() { }
 
