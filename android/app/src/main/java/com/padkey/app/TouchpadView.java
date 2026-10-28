@@ -35,11 +35,11 @@ public class TouchpadView extends View {
     private static final int MODE_BUTTON = 5;
 
     private static final long TAP_TIMEOUT = 280;
-    private static final long DOUBLE_TAP_TIMEOUT = 340;
+    private static final long DOUBLE_TAP_TIMEOUT = 420;
     private static final long LONG_PRESS_TIMEOUT = 460;
     private static final float TAP_SLOP_DP = 11f;
     private static final float DOUBLE_TAP_SLOP_DP = 38f;
-    private static final float SCROLL_STEP_DP = 24f;
+    private static final float SCROLL_STEP_DP = 18f;
 
     private static final String[] BUTTON_NAMES = {"left", "middle", "right"};
     private static final String[] BUTTON_LABELS = {"L", "M", "R"};
@@ -90,6 +90,7 @@ public class TouchpadView extends View {
     private boolean moved;
     private boolean leftDown;
     private boolean scrollHapticSent;
+    private boolean pendingDoubleDrag;
     private float lastCentroidX, lastCentroidY;
     private boolean centroidReady;
     private float scrollAccX, scrollAccY;
@@ -410,12 +411,14 @@ public class TouchpadView extends View {
         moved = false;
         leftDown = false;
         dragPointerId = -1;
+        pendingDoubleDrag = false;
         buttonPointer = -1;
         buttonIndex = -1;
         totalMove = 0;
         scrollAccX = 0;
         scrollAccY = 0;
         scrollHapticSent = false;
+        pendingDoubleDrag = false;
         centroidReady = false;
         downTime = SystemClock.uptimeMillis();
         handler.removeCallbacks(longPress);
@@ -433,7 +436,7 @@ public class TouchpadView extends View {
         float dy = downY - lastTapY;
         if (now - lastTapTime < DOUBLE_TAP_TIMEOUT
                 && dx * dx + dy * dy < dp(DOUBLE_TAP_SLOP_DP) * dp(DOUBLE_TAP_SLOP_DP)) {
-            moveToDrag();
+            pendingDoubleDrag = true;
         }
     }
 
@@ -452,6 +455,10 @@ public class TouchpadView extends View {
                 }
                 moved = true;
                 handler.removeCallbacks(longPress);
+                if (pendingDoubleDrag) {
+                    pendingDoubleDrag = false;
+                    beginDrag();
+                }
                 dx = x - downX;
                 dy = y - downY;
             }
@@ -506,6 +513,7 @@ public class TouchpadView extends View {
 
         if (mode == MODE_ONE) {
             if (!moved && duration < TAP_TIMEOUT) {
+                pendingDoubleDrag = false;
                 leftClick();
                 addRipple(downX, downY, "L");
                 lastTapTime = now;
