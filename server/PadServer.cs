@@ -439,7 +439,7 @@ public sealed class PadServer : IAsyncDisposable
             bool forwarded = false;
             bool isLocked = WorkstationState.IsLocked();
             bool trusted = session.Loopback || _cfg.AllowLanUnlock;
-            if (trusted && isLocked && _secureInput is not null)
+            if (trusted && _secureInput is not null)
             {
                 switch (msg.T)
                 {

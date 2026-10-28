@@ -125,26 +125,21 @@ Windows 蓝牙 HID 键盘，也不需要额外的蓝牙权限：
 
     powershell -ExecutionPolicy Bypass -File .\scripts\install-autostart.ps1
 
-等价于：
+安装需要一次 UAC。它会创建 **最高权限计划任务**：
 
-    .\dist\PadKeyServer.exe --install-autostart
+    PadKeyServerElevated
+    触发器: 当前用户登录
+    运行级别: 最高
+    动作: wscript.exe "%APPDATA%\PadKey\start-tray.vbs"
+
+这样服务器以管理员令牌运行，可以操作 UAC、火绒等受保护/高权限窗口。
+VBS 以最小化窗口启动 <code>PadKeyServer.exe --tray</code>，初始化托盘后再隐藏控制台。
 
 取消：
 
     powershell -ExecutionPolicy Bypass -File .\scripts\uninstall-autostart.ps1
 
-查看状态：
-
-    .\dist\PadKeyServer.exe --autostart-status
-
-执行安装后，自启使用隐藏启动器，避免登录时闪出命令行窗口：
-
-    HKCU\Software\Microsoft\Windows\CurrentVersion\Run\PadKeyServer
-    = wscript.exe "%APPDATA%\PadKey\start-tray.vbs"
-
-<code>start-tray.vbs</code> 会以最小化窗口启动 <code>PadKeyServer.exe --tray</code>，
-服务端初始化托盘后再隐藏控制台。若托盘初始化失败，控制台会保留为任务栏最小化窗口，
-可以手动恢复，不会出现一个完全看不见的后台进程。
+当前不再使用 <code>HKCU\...\Run</code> 的非提权启动项，避免同时启动两个实例。
 
 > 如果移动了项目目录，重新执行一次安装脚本即可更新路径。
 > 自启会读取 <code>%APPDATA%\PadKey\server.json</code> 中保存的模式：先用 <code>--lan</code> 启动过一次，之后自启就是局域网模式；用 <code>--usb</code> 启动过则回到 USB 模式。
@@ -321,6 +316,13 @@ PadKey 可以安装一个可选的 LocalSystem 服务，在 Windows 的 Winlogon
     Stop-Service PadKeySecure
 
 否则服务会锁住 exe。卸载服务后，锁屏仍需物理键盘或 Windows Hello 解锁。
+
+**UAC / 火绒等受保护窗口**
+
+服务器现在通过最高权限计划任务启动，因此可以向前台的高权限窗口注入键鼠。
+UAC 安全桌面仍由 <code>PadKeySecure</code> 的 Winlogon helper 处理。
+注意：这相当于允许平板控制管理员授权窗口和杀毒软件界面；只应在可信环境使用，
+并保护好 PadKey Token。
 
 **假休眠（关闭显示器）**
 
