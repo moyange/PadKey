@@ -17,6 +17,10 @@ internal static class SecureInputHelper
     private static extern bool GetUserObjectInformation(IntPtr hObj, int nIndex, StringBuilder pvInfo,
         int nLength, out uint lpnLengthNeeded);
 
+    private static long _mouseCount;
+    private static long _lastMouseLog;
+    private static long _lastWake;
+
     public static void Run()
     {
         SecureLog.Write("secure helper starting; desktop=" + DesktopName());
@@ -38,6 +42,7 @@ internal static class SecureInputHelper
                         if (parts.Length == 3 && int.TryParse(parts[1], out int code))
                         {
                             bool down = parts[2] == "1";
+                            WakeDisplay();
                             if (down) InputInjector.KeyDown(code);
                             else InputInjector.KeyUp(code);
                         }
@@ -47,7 +52,7 @@ internal static class SecureInputHelper
                         string[] parts = line.Split(' ');
                         if (parts.Length == 3)
                         {
-                            InputInjector.MouseButton(parts[1], parts[2] == "1");
+                            WakeDisplay(); NoteMouse(); InputInjector.MouseButton(parts[1], parts[2] == "1");
                         }
                     }
                     else if (line.StartsWith("M ", StringComparison.Ordinal))
@@ -55,7 +60,7 @@ internal static class SecureInputHelper
                         string[] parts = line.Split(' ');
                         if (parts.Length == 3 && int.TryParse(parts[1], out int dx) && int.TryParse(parts[2], out int dy))
                         {
-                            InputInjector.MouseMove(dx, dy);
+                            WakeDisplay(); NoteMouse(); InputInjector.MouseMove(dx, dy);
                         }
                     }
                     else if (line.StartsWith("S ", StringComparison.Ordinal))
@@ -63,7 +68,7 @@ internal static class SecureInputHelper
                         string[] parts = line.Split(' ');
                         if (parts.Length == 3 && int.TryParse(parts[1], out int dx) && int.TryParse(parts[2], out int dy))
                         {
-                            InputInjector.Scroll(dx, dy);
+                            WakeDisplay(); NoteMouse(); InputInjector.Scroll(dx, dy);
                         }
                     }
                 }
@@ -78,6 +83,27 @@ internal static class SecureInputHelper
                 pipe?.Dispose();
             }
             Thread.Sleep(600);
+        }
+    }
+
+    private static void NoteMouse()
+    {
+        Interlocked.Increment(ref _mouseCount);
+        long now = Environment.TickCount64;
+        if (now - _lastMouseLog > 3000)
+        {
+            _lastMouseLog = now;
+            SecureLog.Write("secure mouse events=" + _mouseCount);
+        }
+    }
+
+    private static void WakeDisplay()
+    {
+        long now = Environment.TickCount64;
+        if (now - _lastWake > 1500)
+        {
+            _lastWake = now;
+            DisplayPower.Wake();
         }
     }
 

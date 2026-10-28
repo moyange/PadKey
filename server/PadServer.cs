@@ -24,6 +24,7 @@ public sealed class PadServer : IAsyncDisposable
     private Task? _tickTask;
     private long _messages;
     private bool? _lastLocked;
+    private long _lastInputAt;
     private SecureInputBridge? _secureInput;
     private DateTime _startedAt = DateTime.Now;
 
@@ -309,6 +310,7 @@ public sealed class PadServer : IAsyncDisposable
 
                 Log.Ok($"已连接: {session.ClientName}  ({remote}, {session.LinkLabel})");
                 await session.SendAsync(Protocol.Welcome(Environment.MachineName, session.LinkLabel, _cfg.Token.Length > 0), ct);
+                DisplayPower.Wake();
                 await session.SendAsync(Protocol.WakeInfo(GetWakeMacs()), ct);
                 session.Start();
                 await session.ReceiveLoopAsync(ct);
@@ -412,6 +414,11 @@ public sealed class PadServer : IAsyncDisposable
     {
         Interlocked.Increment(ref _messages);
         ClientMessage? msg = Protocol.Parse(text);
+        if (msg?.T is "key" or "button" or "move" or "scroll") {
+            long nowInput = Environment.TickCount64;
+            if (nowInput - _lastInputAt > 1200) DisplayPower.Wake();
+            _lastInputAt = nowInput;
+        }
         if (msg?.T is null) return;
 
         if (msg.T is "key" or "button" or "move" or "scroll"
