@@ -60,7 +60,7 @@ internal static class SecureInputHelper
                         string[] parts = line.Split(' ');
                         if (parts.Length == 3 && int.TryParse(parts[1], out int dx) && int.TryParse(parts[2], out int dy))
                         {
-                            WakeDisplay(); NoteMouse(); InputInjector.MouseMove(dx, dy);
+                            WakeDisplay(); NoteMouse(); if (!SecureMouse.Move(dx, dy)) InputInjector.MouseMove(dx, dy);
                         }
                     }
                     else if (line.StartsWith("S ", StringComparison.Ordinal))

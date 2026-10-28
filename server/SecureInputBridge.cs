@@ -36,10 +36,17 @@ internal sealed class SecureInputBridge : IDisposable
                 {
                     while (!_cts.IsCancellationRequested)
                     {
-                        if (_queue.TryTake(out string? message, 250))
+                        if (_queue.TryTake(out string? message, 1000))
                         {
                             byte[] bytes = Encoding.ASCII.GetBytes(message + "\n");
                             pipe.Write(bytes, 0, bytes.Length);
+                            pipe.Flush();
+                        }
+                        else
+                        {
+                            // Detect a helper that exited/was restarted even when no input arrives.
+                            byte[] ping = Encoding.ASCII.GetBytes("P\n");
+                            pipe.Write(ping, 0, ping.Length);
                             pipe.Flush();
                         }
                     }
