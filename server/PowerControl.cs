@@ -79,6 +79,14 @@ internal static class PowerControl
         }
     }
 
+    public static bool IsFakeSleeping
+    {
+        get
+        {
+            lock (FakeGate) return _fakeThread is not null;
+        }
+    }
+
     public static bool Sleep()
     {
         EnableShutdownPrivilege();

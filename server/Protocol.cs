@@ -63,6 +63,9 @@ internal static class Protocol
     public static string PowerAck(bool ok, string action, string? message = null) =>
         JsonSerializer.Serialize(new { t = "power", ok, action, message }, Json);
 
+    public static string FakeSleep(bool on) =>
+        JsonSerializer.Serialize(new { t = "fakeSleep", on }, Json);
+
     public static string Error(string message) =>
         JsonSerializer.Serialize(new { t = "error", message }, Json);
 }

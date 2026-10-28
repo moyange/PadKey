@@ -25,6 +25,7 @@ public sealed class PadServer : IAsyncDisposable
     private long _messages;
     private bool? _lastLocked;
     private long _lastInputAt;
+    private bool? _lastFakeSleep;
     private SecureInputBridge? _secureInput;
     private DateTime _startedAt = DateTime.Now;
 
@@ -155,6 +156,12 @@ public sealed class PadServer : IAsyncDisposable
                     {
                         _lastLocked = effectiveLocked;
                         _ = active.SendAsync(Protocol.Locked(effectiveLocked));
+                    }
+                    bool fakeSleep = PowerControl.IsFakeSleeping;
+                    if (_lastFakeSleep != fakeSleep)
+                    {
+                        _lastFakeSleep = fakeSleep;
+                        _ = active.SendAsync(Protocol.FakeSleep(fakeSleep));
                     }
                 }
 
@@ -312,6 +319,7 @@ public sealed class PadServer : IAsyncDisposable
                 await session.SendAsync(Protocol.Welcome(Environment.MachineName, session.LinkLabel, _cfg.Token.Length > 0), ct);
                 DisplayPower.Wake();
                 await session.SendAsync(Protocol.WakeInfo(GetWakeMacs()), ct);
+                await session.SendAsync(Protocol.FakeSleep(PowerControl.IsFakeSleeping), ct);
                 session.Start();
                 await session.ReceiveLoopAsync(ct);
             }
@@ -354,6 +362,7 @@ public sealed class PadServer : IAsyncDisposable
                 locked = WorkstationState.IsLocked() || !InputInjector.IsInputDesktopAvailable(),
                 workstationLocked = WorkstationState.IsLocked(),
                 secureInput = _secureInput?.IsConnected == true,
+                fakeSleep = PowerControl.IsFakeSleeping,
                 uptimeSeconds = (int)(DateTime.Now - _startedAt).TotalSeconds
             });
             await WriteHttpAsync(stream, 200, "application/json; charset=utf-8", json, ct);
@@ -415,7 +424,9 @@ public sealed class PadServer : IAsyncDisposable
         Interlocked.Increment(ref _messages);
         ClientMessage? msg = Protocol.Parse(text);
         if (msg?.T is "key" or "button" or "move" or "scroll") {
+            bool wasFakeSleep = PowerControl.IsFakeSleeping;
             PowerControl.WakeFromFakeSleep();
+            if (wasFakeSleep) _ = session.SendAsync(Protocol.FakeSleep(false), ct);
             long nowInput = Environment.TickCount64;
             if (nowInput - _lastInputAt > 1200) DisplayPower.Wake();
             _lastInputAt = nowInput;
@@ -499,20 +510,35 @@ public sealed class PadServer : IAsyncDisposable
             case "power":
             {
                 string action = msg.Action ?? "";
-                if (action != "sleep")
+                if (action is not ("toggle" or "sleep" or "wake"))
                 {
                     await session.SendAsync(Protocol.PowerAck(false, action, "unsupported action"), ct);
                     break;
                 }
-                Log.Info("收到电脑休眠请求");
                 session.ReleaseAll();
-                await session.SendAsync(Protocol.PowerAck(true, "sleep"), ct);
-                _ = Task.Run(async () =>
+                bool on;
+                if (action == "toggle")
                 {
-                    await Task.Delay(500);
-                    if (_cfg.DryRun) Log.Info("[dry-run] 不执行假休眠");
-                    else PowerControl.FakeSleep();
-                });
+                    on = !PowerControl.IsFakeSleeping;
+                }
+                else
+                {
+                    on = action == "sleep";
+                }
+                if (on)
+                {
+                    Log.Info("收到假休眠请求");
+                    PowerControl.FakeSleep();
+                }
+                else
+                {
+                    Log.Info("收到假休眠唤醒请求");
+                    PowerControl.WakeFromFakeSleep();
+                    DisplayPower.Wake();
+                }
+                await session.SendAsync(Protocol.PowerAck(true, action), ct);
+                await session.SendAsync(Protocol.FakeSleep(on), ct);
+                _lastFakeSleep = on;
                 break;
             }
 

@@ -66,6 +66,8 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
     private boolean pcLocked;
     private String[] wakeMacs = new String[0];
     private boolean btKeyboardEnabled;
+    private boolean fakeSleeping;
+    private boolean fakeSleepKnown;
     private boolean settingsOpen;
     private boolean resumed;
 
@@ -108,7 +110,7 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
         if (touchpadHidden) touchpad.setVisibility(View.GONE);
 
         settingsButton.setOnClickListener(v -> showSettings());
-        powerButton.setOnClickListener(v -> showPowerDialog());
+        powerButton.setOnClickListener(v -> toggleFakeSleep());
         setConnectedUi(false, "未连接");
     }
 
@@ -271,32 +273,30 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
     }
 
     @Override
-    public void onPowerResult(boolean ok, String message) {
+    public void onFakeSleep(boolean on) {
         runOnUiThread(() -> {
-            if (ok) Toast.makeText(this, "电脑显示器已关闭", Toast.LENGTH_SHORT).show();
-            else Toast.makeText(this, "电源操作失败: " + message, Toast.LENGTH_LONG).show();
+            boolean changed = fakeSleepKnown && fakeSleeping != on;
+            fakeSleeping = on;
+            fakeSleepKnown = true;
+            powerButton.setImageTintList(ColorStateList.valueOf(on ? 0xFF63E3FF : 0xFF9FB0C6));
+            if (changed) {
+                Toast.makeText(this, on ? "电脑已假休眠" : "电脑已唤醒", Toast.LENGTH_SHORT).show();
+            }
         });
     }
 
-    private void showPowerDialog() {
-        // WOL is intentionally disabled: fake sleep keeps the PC and network alive.
-        confirmSleep();
+    @Override
+    public void onPowerResult(boolean ok, String message) {
+        if (!ok) runOnUiThread(() ->
+                Toast.makeText(this, "电源操作失败: " + message, Toast.LENGTH_LONG).show());
     }
 
-    private void confirmSleep() {
+    private void toggleFakeSleep() {
         if (connection == null || !connection.isConnected()) {
-            Toast.makeText(this, "电脑未连接，无法假休眠", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "电脑未连接", Toast.LENGTH_SHORT).show();
             return;
         }
-        new AlertDialog.Builder(this)
-                .setTitle("电脑假休眠")
-                .setMessage("仅关闭电脑显示器，电脑保持运行、网络和服务端不中断。按平板任意键或触摸板即可唤醒显示。")
-                .setPositiveButton("关闭显示器", (dialog, which) -> {
-                    connection.sendPower("sleep");
-                    Toast.makeText(this, "已发送假休眠请求", Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton("取消", null)
-                .show();
+        connection.sendPower("toggle");
     }
 
     private void showConnectedHeader() {
