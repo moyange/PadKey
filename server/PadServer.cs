@@ -32,7 +32,7 @@ public sealed class PadServer : IAsyncDisposable
     private SecureInputBridge? _secureWinlogon;
     private SecureInputBridge? _secureDefault;
     private InputRouter? _inputRouter;
-    private bool? _lastSecureEligible;
+    private InputRoute? _lastRoute;
     private DateTime _startedAt = DateTime.Now;
 
     public PadServer(Config cfg) => _cfg = cfg;
@@ -159,18 +159,20 @@ public sealed class PadServer : IAsyncDisposable
                 ClientSession? active = _active;
                 active?.TickRepeats();
 
+                if (ticks % 5 == 0)
+                {
+                    var currentRoute = _inputRouter?.CurrentRoute() ?? InputRoute.Normal;
+                    if (_lastRoute != currentRoute)
+                    {
+                        _lastRoute = currentRoute;
+                        _inputRouter?.ReleaseAll();
+                        active?.ClearState();
+                    }
+                }
+
                 if (active is not null && ticks % 50 == 0)
                 {
-                    bool desktopLocked = WorkstationState.IsLocked() || !InputInjector.IsInputDesktopAvailable();
-                    bool secureEligible = SecureArm.IsArmed &&
-                        (desktopLocked ? _secureWinlogon is { IsConnected: true } : _secureDefault is { IsConnected: true });
-                    bool effectiveLocked = desktopLocked && !secureEligible;
-                    if (_lastSecureEligible != secureEligible)
-                    {
-                        _lastSecureEligible = secureEligible;
-                        active?.ReleaseAll();
-                        _inputRouter?.ReleaseAll();
-                    }
+                    bool effectiveLocked = _inputRouter?.CurrentRoute() == InputRoute.Locked;
                     if (_lastLocked != effectiveLocked)
                     {
                         _lastLocked = effectiveLocked;
@@ -367,7 +369,8 @@ public sealed class PadServer : IAsyncDisposable
                 {
                     if (ReferenceEquals(_active, registeredSession)) _active = null;
                 }
-                registeredSession.ReleaseAll();
+                registeredSession.ClearState();
+                _inputRouter?.ReleaseAll();
                 Log.Info($"已断开: {registeredSession.ClientName}");
             }
             _connections.TryRemove(id, out _);
@@ -503,6 +506,7 @@ public sealed class PadServer : IAsyncDisposable
 
             case "release":
                 session.ReleaseAll();
+                _inputRouter?.ReleaseAll();
                 Log.Info("客户端请求释放所有按键");
                 break;
 
@@ -515,6 +519,7 @@ public sealed class PadServer : IAsyncDisposable
                     break;
                 }
                 session.ReleaseAll();
+                _inputRouter?.ReleaseAll();
                 bool on;
                 if (action == "toggle")
                 {

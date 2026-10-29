@@ -152,6 +152,17 @@ internal sealed class ClientSession
         }
     }
 
+    /// <summary>Drop held-state without injecting into a desktop that may no longer be correct.</summary>
+    public void ClearState()
+    {
+        lock (_lock)
+        {
+            _keys.Clear();
+            _repeatAt.Clear();
+            _left = _right = _middle = false;
+        }
+    }
+
     public void Abort()
     {
         _closed = true;

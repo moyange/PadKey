@@ -1,5 +1,7 @@
 namespace PadKey;
 
+internal enum InputRoute { Normal, Default, Winlogon, Locked }
+
 internal interface IInputSink
 {
     void KeyDown(int hid, bool repeat = false);
@@ -22,13 +24,24 @@ internal sealed class InputRouter : IInputSink
         _default = defaultDesktop;
     }
 
-    private SecureInputBridge? Choose()
+    public InputRoute CurrentRoute()
     {
-        if (!SecureArm.IsArmed) return null;
-        if (!InputInjector.IsInputDesktopAvailable())
-            return _winlogon is { IsConnected: true } ? _winlogon : null;
-        return _default is { IsConnected: true } ? _default : null;
+        bool secureDesktop = !InputInjector.IsInputDesktopAvailable();
+        if (secureDesktop)
+        {
+            if (!SecureArm.IsArmed) return InputRoute.Locked;
+            return _winlogon is { IsConnected: true } ? InputRoute.Winlogon : InputRoute.Locked;
+        }
+        if (!SecureArm.IsArmed) return InputRoute.Normal;
+        return _default is { IsConnected: true } ? InputRoute.Default : InputRoute.Normal;
     }
+
+    private SecureInputBridge? Choose() => CurrentRoute() switch
+    {
+        InputRoute.Winlogon => _winlogon,
+        InputRoute.Default => _default,
+        _ => null
+    };
 
     public void KeyDown(int hid, bool repeat = false)
     {

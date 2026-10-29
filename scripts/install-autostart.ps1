@@ -41,7 +41,12 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
 
 $svc = Get-Service PadKeySecure -ErrorAction SilentlyContinue
-if ($svc) { Start-Service PadKeySecure -ErrorAction SilentlyContinue }
+if ($svc) {
+    Start-Sleep -Seconds 2
+    Start-Service PadKeySecure -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    if ((Get-Service PadKeySecure).Status -ne "Running") { & sc.exe start PadKeySecure | Out-Null }
+}
 Start-ScheduledTask -TaskName $TaskName
 Write-Host "已安装到受保护目录: $InstallDir" -ForegroundColor Green
 Write-Host "计划任务只运行该目录中的管理员专属文件。" -ForegroundColor Gray
