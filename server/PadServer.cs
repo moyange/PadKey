@@ -50,8 +50,11 @@ public sealed class PadServer : IAsyncDisposable
         _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
         _listener.Start(16);
         _startedAt = DateTime.Now;
-        _secureInput = new SecureInputBridge();
-        _secureInput.Start();
+        if (_cfg.AllowSecureInput)
+        {
+            _secureInput = new SecureInputBridge();
+            _secureInput.Start();
+        }
         _acceptTask = AcceptLoopAsync(_cts.Token);
         _tickTask = TickLoopAsync(_cts.Token);
         if (_cfg.Lan) StartDiscovery();
@@ -273,7 +276,7 @@ public sealed class PadServer : IAsyncDisposable
                     return;
                 }
 
-                if (!loopback && _cfg.Token.Length > 0)
+                if (_cfg.Token.Length > 0)
                 {
                     if (!FixedTimeEquals(hello.Token ?? "", _cfg.Token))
                     {
@@ -449,7 +452,7 @@ public sealed class PadServer : IAsyncDisposable
             bool forwarded = false;
             bool isLocked = WorkstationState.IsLocked();
             bool trusted = session.Loopback || _cfg.AllowLanUnlock;
-            if (trusted && _secureInput is not null)
+            if (_cfg.AllowSecureInput && trusted && _secureInput is not null)
             {
                 switch (msg.T)
                 {

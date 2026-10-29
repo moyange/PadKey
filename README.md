@@ -126,15 +126,19 @@ Windows 蓝牙 HID 键盘，也不需要额外的蓝牙权限：
 
     powershell -ExecutionPolicy Bypass -File .\scripts\install-autostart.ps1
 
-安装需要一次 UAC。它会创建 **最高权限计划任务**：
+安装需要一次 UAC。它会把程序安装到受保护目录：
+
+    C:\Program Files\PadKey\PadKeyServer.exe
+
+普通用户只有读取/执行权限，只有管理员和 SYSTEM 可以修改。计划任务为普通权限：
 
     PadKeyServerElevated
     触发器: 当前用户登录
-    运行级别: 最高
-    动作: wscript.exe "%APPDATA%\PadKey\start-tray.vbs"
+    运行级别: 有限（普通用户）
+    动作: wscript.exe "C:\Program Files\PadKey\start-tray.vbs"
 
-这样服务器以管理员令牌运行，可以操作 UAC、火绒等受保护/高权限窗口。
-VBS 以最小化窗口启动 <code>PadKeyServer.exe --tray</code>，初始化托盘后再隐藏控制台。
+服务器以普通用户权限运行，不再控制 UAC、火绒等高权限窗口。
+安装脚本会移除旧的 LocalSystem 安全输入服务，避免本地提权。
 
 取消：
 
@@ -265,7 +269,7 @@ WebSocket 文本帧，JSON，HID 键盘 Usage ID：
 **按键没有输入到某个程序**
 
 如果目标程序以管理员权限运行，Windows 的 UIPI 会阻止普通权限进程注入。
-右键 <code>PadKeyServer.exe</code> →“以管理员身份运行”，或使用 <code>start-all.ps1 -Admin</code>。
+v1.8 起服务端固定以普通用户权限运行，不再提供“以管理员运行”的绕过；高权限程序请用本机键鼠。
 
 **键盘符号与键帽不一致**
 
@@ -290,46 +294,23 @@ App v1.4.0 会在安全输入不可用时显示“已连接 · 电脑已锁屏�
 关闭后唤醒会直接回到桌面，PadKey 可以立即使用。但这意味着别人唤醒电脑也无需 PIN，
 请根据使用环境决定。若必须保留 PIN，则需要在电脑上手动解锁，或使用 Windows 远程桌面。
 
-**锁屏 PIN：可选安全输入服务（v1.3.0+）**
+**锁屏 PIN / UAC / 火绒等高权限窗口（已禁用远程输入）**
 
-PadKey 可以安装一个可选的 LocalSystem 服务，在 Windows 的 Winlogon 安全桌面启动 helper，
-从而在锁屏 PIN 界面输入数字、字母、退格和回车。原理与 Mouse without Borders 相同：
+安全审查后，v1.8 起默认不再提供安全桌面和高权限窗口的远程注入：
 
-- 服务名：<code>PadKeySecure</code>，以 LocalSystem 自动启动
-- 服务用 winlogon 进程令牌，在 <code>winsta0\winlogon</code> 桌面启动
-  <code>PadKeyServer.exe --secure-helper</code>
-- helper 通过本机命名管道 <code>PadKeySecureInput</code> 接收键盘、触摸板移动/点击/滚轮并 SendInput
-- PadKeyServer 只在检测到**锁屏**时转发按键
-- 默认只对 USB/loopback 转发；设置 `AllowLanUnlock` 后可允许受信任局域网输入 PIN
-- 注意：LAN 模式是明文 `ws://` + Token，能嗅探/拿到 Token 的同网设备也能尝试输入 PIN；只应在可信 Wi-Fi 使用
+- 主服务端以普通用户权限运行
+- 旧的 LocalSystem <code>PadKeySecure</code> helper 服务会被安装脚本移除
+- 默认设置 <code>AllowSecureInput=false</code>
+- UAC、锁屏 PIN、火绒等高权限界面请使用本机键盘、Windows Hello 或远程桌面
 
-安装（会弹 UAC）：
-
-    powershell -ExecutionPolicy Bypass -File .\scripts\install-secure-service.ps1
-
-卸载：
-
-    powershell -ExecutionPolicy Bypass -File .\scripts\uninstall-secure-service.ps1
-
-注意：这个服务拥有 SYSTEM 权限并运行在安全桌面，属于高权限组件。只应在自己的电脑上使用；
-安装后请保持 PadKey 的 Token/配对安全。更新 PadKeyServer.exe 前需要先停止服务：
-
-    Stop-Service PadKeySecure
-
-否则服务会锁住 exe。卸载服务后，锁屏仍需物理键盘或 Windows Hello 解锁。
-
-**UAC / 火绒等受保护窗口**
-
-服务器现在通过最高权限计划任务启动，因此可以向前台的高权限窗口注入键鼠。
-UAC 安全桌面仍由 <code>PadKeySecure</code> 的 Winlogon helper 处理。
-注意：这相当于允许平板控制管理员授权窗口和杀毒软件界面；只应在可信环境使用，
-并保护好 PadKey Token。
+原因：SYSTEM helper 加普通 WebSocket 认证会让远程 Token 等同于管理员输入能力，
+且用户可写文件曾可被高权限任务加载。安全优先，因此关闭该能力。
 
 **假休眠（关闭显示器）**
 
 标题栏右侧的电源按钮现在执行“假休眠”：
 
-- 电脑保持运行，网络、WebSocket、PadKeySecure 都不中断
+- 电脑保持运行，网络和 WebSocket 都不中断
 - 服务端阻止系统进入真实睡眠，只关闭显示器
 - 单击一次关闭显示器，再单击一次打开显示器，像电源开关一样
 - 平板任意键盘按键或触摸板事件也会自动打开显示器
@@ -366,8 +347,7 @@ v1.4 起服务端在连接恢复或间隔一段时间后的第一次键鼠事件
 
 **锁屏 PIN 界面触摸板不工作**
 
-Windows 锁屏是安全桌面，键盘输入由 PadKeySecure 转发；鼠标在锁屏界面的支持取决于
-Windows 版本和锁屏状态，部分系统会忽略注入的鼠标。键盘输入 PIN 仍是可靠路径。
+Windows 锁屏是安全桌面；v1.8 起 PadKey 不再转发锁屏输入，请用本机键盘/Windows Hello 解锁。
 另外触摸板如果被右侧把手收起，会完全不接收触摸事件，先点把手展开。
 
 **电脑休眠/唤醒后连不上**
@@ -388,7 +368,7 @@ v1.2 起 App 会自动心跳重连，服务端会替换旧连接，通常唤醒�
 - 不支持三指/四指滑动切换桌面等系统手势（仅轻点中键）。
 - 局域网模式是明文 WebSocket，不建议在公共网络使用。
 - APK 使用 debug 签名，仅适合个人安装；正式分发请换自己的签名。
-- 权限受 Windows UIPI 限制，无法向管理员窗口注入，除非服务端也以管理员运行。
+- 权限受 Windows UIPI 限制，无法向管理员窗口注入；v1.8 起不再提供管理员降级例外。
 
 ---
 

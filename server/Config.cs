@@ -12,6 +12,7 @@ public sealed class Config
     public int RepeatIntervalMs { get; set; } = 33;
     public bool Verbose { get; set; }
     public bool AllowLanUnlock { get; set; }
+    public bool AllowSecureInput { get; set; }
     [System.Text.Json.Serialization.JsonIgnore]
     public bool DryRun { get; set; }
 
@@ -133,8 +134,8 @@ public sealed class Config
         if (cfg.Token.Length > 0 && cfg.Token.Length < 4)
             throw new ArgumentException("Token 至少 4 个字符");
 
-        if (cfg.Lan && string.IsNullOrWhiteSpace(cfg.Token))
-            cfg.Token = RandomNumberGenerator.GetHexString(8, lowercase: false);
+        if (string.IsNullOrWhiteSpace(cfg.Token))
+            cfg.Token = RandomNumberGenerator.GetHexString(32, lowercase: false);
 
         return cfg;
     }

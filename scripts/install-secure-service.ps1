@@ -1,36 +1,35 @@
 ﻿[CmdletBinding()]
 param()
 
-$ErrorActionPreference = "Continue"
-$log = Join-Path (Split-Path -Parent $PSScriptRoot) "tools\install-secure.log"
-try { Start-Transcript -Path $log -Append -Force | Out-Null } catch { }
+$ErrorActionPreference = "Stop"
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = New-Object Security.Principal.WindowsPrincipal($identity)
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+$principalCheck = New-Object Security.Principal.WindowsPrincipal($identity)
+if (-not $principalCheck.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Start-Process powershell.exe -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$PSCommandPath"
     exit
 }
 
-$serviceName = "PadKeySecure"
-$exe = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\dist\PadKeyServer.exe"))
-Write-Host "exe=$exe"
-if (-not (Test-Path $exe)) { Write-Host "missing exe" -ForegroundColor Red; Stop-Transcript; exit 1 }
+$Root = Split-Path -Parent $PSScriptRoot
+$SourceExe = Join-Path $Root "dist\PadKeyServer.exe"
+if (-not (Test-Path $SourceExe)) { Write-Host "缺少 dist\PadKeyServer.exe" -ForegroundColor Red; exit 1 }
+$InstallDir = Join-Path $env:ProgramFiles "PadKey"
+$InstalledExe = Join-Path $InstallDir "PadKeyServer.exe"
 
-$old = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-if ($old) {
-    Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 1
-    & sc.exe delete $serviceName | Out-Host
-    Start-Sleep -Seconds 1
-}
-$bin = '"' + $exe + '" --secure-service'
-Write-Host "bin=$bin"
-& sc.exe create $serviceName binPath= $bin start= auto obj= LocalSystem DisplayName= "PadKey Secure Input"
-Write-Host "create exit=$LASTEXITCODE"
-& sc.exe description $serviceName "PadKey locked-screen keyboard input helper"
-& sc.exe start $serviceName
-Write-Host "start exit=$LASTEXITCODE"
-Start-Sleep -Seconds 2
-Get-Service -Name $serviceName -ErrorAction SilentlyContinue | Format-List Name,Status,StartType
-if (Test-Path "C:\ProgramData\PadKey\secure.log") { Get-Content "C:\ProgramData\PadKey\secure.log" -Tail 20 }
-Stop-Transcript
+Stop-ScheduledTask -TaskName PadKeyServerElevated -ErrorAction SilentlyContinue
+Stop-Service PadKeySecure -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 1
+Get-Process PadKeyServer -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 500
+
+New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+Copy-Item $SourceExe $InstalledExe -Force
+& icacls $InstallDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
+
+$bin = '"' + $InstalledExe + '" --secure-service'
+$svc = Get-Service PadKeySecure -ErrorAction SilentlyContinue
+if ($svc) { & sc.exe config PadKeySecure binPath= $bin | Out-Null }
+else { & sc.exe create PadKeySecure binPath= $bin start= auto obj= LocalSystem DisplayName= "PadKey Secure Input" | Out-Null }
+Start-Service PadKeySecure
+Start-Sleep -Seconds 1
+Get-Service PadKeySecure | Select-Object Name,Status
+Write-Host "LocalSystem 服务现在只运行受保护路径: $InstalledExe" -ForegroundColor Green
