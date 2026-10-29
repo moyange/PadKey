@@ -51,5 +51,5 @@ if ($svc) {
 
 Start-ScheduledTask -TaskName $TaskName
 Write-Host "已安装到受保护目录: $InstallDir" -ForegroundColor Green
-Write-Host "计划任务和服务只运行该目录中的管理员专属文件。" -ForegroundColor Gray
+Write-Host "计划任务只运行该目录中的管理员专属文件。" -ForegroundColor Gray
 Write-Host "当前用户可执行但不能修改该目录。"
