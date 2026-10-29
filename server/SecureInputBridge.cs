@@ -8,6 +8,10 @@ namespace PadKey;
 internal sealed class SecureInputBridge : IDisposable
 {
     public const string PipeName = "PadKeySecureInput";
+    public const string DefaultPipeName = "PadKeySecureInputDefault";
+    private readonly string _pipeName;
+
+    public SecureInputBridge(string pipeName = PipeName) => _pipeName = pipeName;
     private readonly BlockingCollection<string> _queue = new(new ConcurrentQueue<string>(), 256);
     private readonly CancellationTokenSource _cts = new();
     private Thread? _thread;
@@ -27,7 +31,7 @@ internal sealed class SecureInputBridge : IDisposable
         {
             try
             {
-                using var pipe = new NamedPipeServerStream(PipeName, PipeDirection.Out, 1,
+                using var pipe = new NamedPipeServerStream(_pipeName, PipeDirection.Out, 1,
                     PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
                 pipe.WaitForConnectionAsync(_cts.Token).GetAwaiter().GetResult();
                 _connected = true;
@@ -62,6 +66,12 @@ internal sealed class SecureInputBridge : IDisposable
                 Thread.Sleep(500);
             }
         }
+    }
+
+    public bool ReleaseAll()
+    {
+        if (!_connected) return false;
+        return _queue.TryAdd("R");
     }
 
     public bool SendKey(int code, bool down)

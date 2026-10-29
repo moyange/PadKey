@@ -21,22 +21,32 @@ internal static class SecureInputHelper
     private static long _lastMouseLog;
     private static long _lastWake;
 
-    public static void Run()
+    public static void Run(string pipeName = SecureInputBridge.PipeName, bool relativeMouse = false)
     {
-        SecureLog.Write("secure helper starting; desktop=" + DesktopName());
+        if (string.IsNullOrWhiteSpace(pipeName)) pipeName = SecureInputBridge.PipeName;
+        SecureLog.Write("secure helper starting; pipe=" + pipeName + "; desktop=" + DesktopName());
         while (true)
         {
             NamedPipeClientStream? pipe = null;
             try
             {
-                pipe = new NamedPipeClientStream(".", SecureInputBridge.PipeName, PipeDirection.In);
+                pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.In);
                 pipe.Connect(1500);
                 SecureLog.Write("secure helper pipe connected");
                 using var reader = new StreamReader(pipe, Encoding.ASCII);
                 string? line;
                 while ((line = reader.ReadLine()) is not null)
                 {
-                    if (line.StartsWith("K ", StringComparison.Ordinal))
+                    if (!SecureArm.IsArmed)
+                    {
+                        InputInjector.ReleaseAll();
+                        continue;
+                    }
+                    if (line == "R")
+                    {
+                        InputInjector.ReleaseAll();
+                    }
+                    else if (line.StartsWith("K ", StringComparison.Ordinal))
                     {
                         string[] parts = line.Split(' ');
                         if (parts.Length == 3 && int.TryParse(parts[1], out int code))
@@ -60,7 +70,7 @@ internal static class SecureInputHelper
                         string[] parts = line.Split(' ');
                         if (parts.Length == 3 && int.TryParse(parts[1], out int dx) && int.TryParse(parts[2], out int dy))
                         {
-                            WakeDisplay(); NoteMouse(); if (!SecureMouse.Move(dx, dy)) InputInjector.MouseMove(dx, dy);
+                            WakeDisplay(); NoteMouse(); if (relativeMouse || !SecureMouse.Move(dx, dy)) InputInjector.MouseMove(dx, dy);
                         }
                     }
                     else if (line.StartsWith("S ", StringComparison.Ordinal))

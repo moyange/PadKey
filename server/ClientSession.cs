@@ -6,6 +6,7 @@ namespace PadKey;
 internal sealed class ClientSession
 {
     private readonly PadServer _server;
+    private readonly IInputSink _input;
     private readonly WebSocket _ws;
     private readonly object _lock = new();
     private readonly HashSet<int> _keys = new();
@@ -14,9 +15,10 @@ internal sealed class ClientSession
     private bool _left, _right, _middle;
     private bool _closed;
 
-    public ClientSession(PadServer server, WebSocket ws, string remote, bool loopback, string clientName)
+    public ClientSession(PadServer server, WebSocket ws, string remote, bool loopback, string clientName, IInputSink input)
     {
         _server = server;
+        _input = input;
         _ws = ws;
         Remote = remote;
         Loopback = loopback;
@@ -70,7 +72,7 @@ internal sealed class ClientSession
         lock (_lock)
         {
             if (_closed || !_keys.Add(hid)) return;
-            InputInjector.KeyDown(hid);
+            _input.KeyDown(hid);
             if (KeyMap.IsRepeatable(hid))
                 _repeatAt[hid] = Environment.TickCount64 + _server.RepeatDelayMs;
         }
@@ -82,7 +84,7 @@ internal sealed class ClientSession
         {
             if (!_keys.Remove(hid)) return;
             _repeatAt.Remove(hid);
-            InputInjector.KeyUp(hid);
+            _input.KeyUp(hid);
         }
     }
 
@@ -101,7 +103,7 @@ internal sealed class ClientSession
                     _repeatAt.Remove(hid);
                     continue;
                 }
-                InputInjector.KeyDown(hid, repeat: true);
+                _input.KeyDown(hid, true);
                 long interval = _server.RepeatIntervalMs;
                 _repeatAt[hid] = next + interval <= now ? now + interval : next + interval;
             }
@@ -131,7 +133,7 @@ internal sealed class ClientSession
                     _middle = down;
                     break;
             }
-            InputInjector.MouseButton(b, down);
+            _input.MouseButton(b, down);
         }
     }
 
@@ -140,13 +142,13 @@ internal sealed class ClientSession
         lock (_lock)
         {
             foreach (int hid in _keys.ToArray())
-                InputInjector.KeyUp(hid);
+                _input.KeyUp(hid);
             _keys.Clear();
             _repeatAt.Clear();
 
-            if (_left) { _left = false; InputInjector.MouseButton("left", false); }
-            if (_right) { _right = false; InputInjector.MouseButton("right", false); }
-            if (_middle) { _middle = false; InputInjector.MouseButton("middle", false); }
+            if (_left) { _left = false; _input.MouseButton("left", false); }
+            if (_right) { _right = false; _input.MouseButton("right", false); }
+            if (_middle) { _middle = false; _input.MouseButton("middle", false); }
         }
     }
 

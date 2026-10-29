@@ -29,7 +29,10 @@ public sealed class PadServer : IAsyncDisposable
     private bool? _lastCaps;
     private bool? _lastNum;
     private bool? _lastScroll;
-    private SecureInputBridge? _secureInput;
+    private SecureInputBridge? _secureWinlogon;
+    private SecureInputBridge? _secureDefault;
+    private InputRouter? _inputRouter;
+    private bool? _lastSecureEligible;
     private DateTime _startedAt = DateTime.Now;
 
     public PadServer(Config cfg) => _cfg = cfg;
@@ -52,9 +55,12 @@ public sealed class PadServer : IAsyncDisposable
         _startedAt = DateTime.Now;
         if (_cfg.AllowSecureInput)
         {
-            _secureInput = new SecureInputBridge();
-            _secureInput.Start();
+            _secureWinlogon = new SecureInputBridge(SecureInputBridge.PipeName);
+            _secureDefault = new SecureInputBridge(SecureInputBridge.DefaultPipeName);
+            _secureWinlogon.Start();
+            _secureDefault.Start();
         }
+        _inputRouter = new InputRouter(_secureWinlogon, _secureDefault);
         _acceptTask = AcceptLoopAsync(_cts.Token);
         _tickTask = TickLoopAsync(_cts.Token);
         if (_cfg.Lan) StartDiscovery();
@@ -156,8 +162,15 @@ public sealed class PadServer : IAsyncDisposable
                 if (active is not null && ticks % 50 == 0)
                 {
                     bool desktopLocked = WorkstationState.IsLocked() || !InputInjector.IsInputDesktopAvailable();
-                    bool secure = desktopLocked && WorkstationState.IsLocked() && _secureInput?.IsConnected == true;
-                    bool effectiveLocked = desktopLocked && !secure;
+                    bool secureEligible = SecureArm.IsArmed &&
+                        (desktopLocked ? _secureWinlogon is { IsConnected: true } : _secureDefault is { IsConnected: true });
+                    bool effectiveLocked = desktopLocked && !secureEligible;
+                    if (_lastSecureEligible != secureEligible)
+                    {
+                        _lastSecureEligible = secureEligible;
+                        active?.ReleaseAll();
+                        _inputRouter?.ReleaseAll();
+                    }
                     if (_lastLocked != effectiveLocked)
                     {
                         _lastLocked = effectiveLocked;
@@ -286,7 +299,7 @@ public sealed class PadServer : IAsyncDisposable
                     }
                 }
 
-                var session = new ClientSession(this, ws, remote, loopback, hello.Name ?? "Pad")
+                var session = new ClientSession(this, ws, remote, loopback, hello.Name ?? "Pad", _inputRouter!)
                 {
                     LastSeenUtc = DateTime.UtcNow
                 };
@@ -374,7 +387,8 @@ public sealed class PadServer : IAsyncDisposable
                 messages = Messages,
                 locked = WorkstationState.IsLocked() || !InputInjector.IsInputDesktopAvailable(),
                 workstationLocked = WorkstationState.IsLocked(),
-                secureInput = _secureInput?.IsConnected == true,
+                secureInput = (_secureWinlogon?.IsConnected == true) || (_secureDefault?.IsConnected == true),
+                secureArmed = SecureArm.IsArmed,
                 fakeSleep = PowerControl.IsFakeSleeping,
                 uptimeSeconds = (int)(DateTime.Now - _startedAt).TotalSeconds
             });
@@ -446,34 +460,6 @@ public sealed class PadServer : IAsyncDisposable
         }
         if (msg?.T is null) return;
 
-        if (msg.T is "key" or "button" or "move" or "scroll"
-            && (WorkstationState.IsLocked() || !InputInjector.IsInputDesktopAvailable()))
-        {
-            bool forwarded = false;
-            bool isLocked = WorkstationState.IsLocked();
-            bool trusted = session.Loopback || _cfg.AllowLanUnlock;
-            if (_cfg.AllowSecureInput && trusted && _secureInput is not null)
-            {
-                switch (msg.T)
-                {
-                    case "key" when msg.Code is int sc && msg.Down is bool sd:
-                        forwarded = _secureInput.SendKey(sc, sd);
-                        break;
-                    case "button" when msg.B is string button && msg.Down is bool bd:
-                        forwarded = _secureInput.SendButton(button, bd);
-                        break;
-                    case "move" when msg.Dx is double mx && msg.Dy is double my:
-                        forwarded = _secureInput.SendMove(mx, my);
-                        break;
-                    case "scroll" when msg.Dx is double sx && msg.Dy is double sy:
-                        forwarded = _secureInput.SendScroll(sx, sy);
-                        break;
-                }
-            }
-            if (!forwarded) await session.SendAsync(Protocol.Locked(true), ct);
-            return;
-        }
-
         switch (msg.T)
         {
             case "ping":
@@ -495,7 +481,7 @@ public sealed class PadServer : IAsyncDisposable
             {
                 double dx = msg.Dx ?? 0, dy = msg.Dy ?? 0;
                 if (Math.Abs(dx) > 1000 || Math.Abs(dy) > 1000) return;
-                InputInjector.MouseMove(dx, dy);
+                _inputRouter!.MouseMove(dx, dy);
                 break;
             }
 
@@ -511,7 +497,7 @@ public sealed class PadServer : IAsyncDisposable
             {
                 int dx = Math.Clamp((int)(msg.Dx ?? 0), -50, 50);
                 int dy = Math.Clamp((int)(msg.Dy ?? 0), -50, 50);
-                InputInjector.Scroll(dx, dy);
+                _inputRouter!.Scroll(dx, dy);
                 break;
             }
 
@@ -567,7 +553,8 @@ public sealed class PadServer : IAsyncDisposable
     public async Task StopAsync()
     {
         _cts.Cancel();
-        try { _secureInput?.Dispose(); } catch { }
+        try { _secureWinlogon?.Dispose(); } catch { }
+        try { _secureDefault?.Dispose(); } catch { }
         try { _discovery?.Dispose(); } catch { }
         try { _listener?.Stop(); } catch { }
         ClientSession? session = _active;

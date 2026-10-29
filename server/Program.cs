@@ -29,9 +29,37 @@ internal static class Program
             return 2;
         }
 
+        if (cfg.ArmSecureMinutes > 0)
+        {
+            if (!SecureArm.IsAdministrator())
+            {
+                Log.Err("安全输入授权需要管理员权限，请从托盘菜单确认 UAC。");
+                return 1;
+            }
+            if (!SecureArm.Arm(cfg.ArmSecureMinutes))
+            {
+                Log.Err("安全输入授权失败。");
+                return 1;
+            }
+            Log.Ok($"安全输入已授权 {cfg.ArmSecureMinutes} 分钟。");
+            return 0;
+        }
+
+        if (cfg.DisarmSecure)
+        {
+            if (!SecureArm.IsAdministrator())
+            {
+                Log.Err("关闭安全输入授权需要管理员权限。");
+                return 1;
+            }
+            SecureArm.Disarm();
+            Log.Ok("安全输入授权已关闭。");
+            return 0;
+        }
+
         if (cfg.SecureHelper)
         {
-            SecureInputHelper.Run();
+            SecureInputHelper.Run(cfg.SecureHelperPipe, cfg.SecureHelperRelativeMouse);
             return 0;
         }
 

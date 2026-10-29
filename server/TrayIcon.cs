@@ -43,6 +43,8 @@ internal sealed class TrayIcon : IDisposable
     private const int ID_MINIMIZE = 1002;
     private const int ID_AUTOSTART = 1003;
     private const int ID_EXIT = 1004;
+    private const int ID_ARM_SECURE = 1005;
+    private const int ID_DISARM_SECURE = 1006;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct NOTIFYICONDATA
@@ -307,6 +309,11 @@ internal sealed class TrayIcon : IDisposable
                 MF_STRING | (AutoStart.IsEnabled() ? MF_CHECKED : MF_UNCHECKED),
                 new IntPtr(ID_AUTOSTART), "开机自启");
             AppendMenu(menu, MF_SEPARATOR, IntPtr.Zero, null);
+            if (SecureArm.IsArmed)
+                AppendMenu(menu, MF_STRING, new IntPtr(ID_DISARM_SECURE), "关闭安全输入授权");
+            else
+                AppendMenu(menu, MF_STRING, new IntPtr(ID_ARM_SECURE), "允许安全输入 15 分钟…");
+            AppendMenu(menu, MF_SEPARATOR, IntPtr.Zero, null);
             AppendMenu(menu, MF_STRING, new IntPtr(ID_EXIT), "退出 PadKey Server");
 
             GetCursorPos(out POINT p);
@@ -337,10 +344,36 @@ internal sealed class TrayIcon : IDisposable
                 else AutoStart.Enable();
                 SetStatus("PadKey Server · " + (AutoStart.IsEnabled() ? "开机自启已开启" : "开机自启已关闭"));
                 break;
+            case ID_ARM_SECURE:
+                RunElevated("--arm-secure 15");
+                break;
+            case ID_DISARM_SECURE:
+                RunElevated("--disarm-secure");
+                break;
             case ID_EXIT:
                 _exit();
                 PostQuitMessage(0);
                 break;
+        }
+    }
+
+    private void RunElevated(string arguments)
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = Environment.ProcessPath ?? "PadKeyServer.exe",
+                Arguments = arguments,
+                UseShellExecute = true,
+                Verb = "runas"
+            };
+            System.Diagnostics.Process.Start(psi);
+            SetStatus("PadKey Server · 安全输入授权操作已打开");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("安全输入授权失败: " + ex.Message);
         }
     }
 

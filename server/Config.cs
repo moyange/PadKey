@@ -12,7 +12,7 @@ public sealed class Config
     public int RepeatIntervalMs { get; set; } = 33;
     public bool Verbose { get; set; }
     public bool AllowLanUnlock { get; set; }
-    public bool AllowSecureInput { get; set; }
+    public bool AllowSecureInput { get; set; } = true;
     [System.Text.Json.Serialization.JsonIgnore]
     public bool DryRun { get; set; }
 
@@ -39,6 +39,21 @@ public sealed class Config
 
     [System.Text.Json.Serialization.JsonIgnore]
     public bool SecureHelper { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string SecureHelperPipe { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string SecureHelperDesktop { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool SecureHelperRelativeMouse { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int ArmSecureMinutes { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool DisarmSecure { get; set; }
 
     public static string DataDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PadKey");
@@ -122,6 +137,17 @@ public sealed class Config
                     break;
                 case "--secure-helper":
                     cfg.SecureHelper = true;
+                    if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal)) cfg.SecureHelperPipe = args[++i];
+                    if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal)) cfg.SecureHelperDesktop = args[++i];
+                    if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal)) cfg.SecureHelperRelativeMouse = args[++i] == "1";
+                    break;
+                case "--arm-secure":
+                    value ??= NextValue(args, ref i);
+                    if (!int.TryParse(value, out int armMinutes)) throw new ArgumentException("--arm-secure 需要分钟数");
+                    cfg.ArmSecureMinutes = armMinutes;
+                    break;
+                case "--disarm-secure":
+                    cfg.DisarmSecure = true;
                     break;
                 case "--help":
                 case "-h":
@@ -173,6 +199,8 @@ PadKey Server — 把平板变成 75% 键盘 + 触摸板
   --install-autostart   设置当前用户开机自启（托盘模式）
   --remove-autostart    取消开机自启
   --autostart-status    显示开机自启状态
+  --arm-secure <分钟>   本机 UAC 确认后临时允许安全桌面输入
+  --disarm-secure       立即关闭安全桌面输入
   --help, -h        显示帮助
 
 USB 连接:

@@ -137,8 +137,9 @@ Windows 蓝牙 HID 键盘，也不需要额外的蓝牙权限：
     运行级别: 有限（普通用户）
     动作: wscript.exe "C:\Program Files\PadKey\start-tray.vbs"
 
-服务器以普通用户权限运行，不再控制 UAC、火绒等高权限窗口。
-安装脚本会移除旧的 LocalSystem 安全输入服务，避免本地提权。
+服务器以普通用户权限运行。UAC、锁屏 PIN、火绒等高权限窗口由受保护的
+<code>PadKeySecure</code> LocalSystem broker 处理，但必须在本机托盘菜单里临时授权，
+普通 WebSocket Token 不能直接开启安全输入。
 
 取消：
 
@@ -294,17 +295,33 @@ App v1.4.0 会在安全输入不可用时显示“已连接 · 电脑已锁屏�
 关闭后唤醒会直接回到桌面，PadKey 可以立即使用。但这意味着别人唤醒电脑也无需 PIN，
 请根据使用环境决定。若必须保留 PIN，则需要在电脑上手动解锁，或使用 Windows 远程桌面。
 
-**锁屏 PIN / UAC / 火绒等高权限窗口（已禁用远程输入）**
+**锁屏 PIN / UAC / 火绒等高权限窗口（本地授权后可用）**
 
-安全审查后，v1.8 起默认不再提供安全桌面和高权限窗口的远程注入：
+安全输入由受保护的 LocalSystem 服务 <code>PadKeySecure</code> 处理，它没有网络监听，
+只运行 <code>C:\\Program Files\\PadKey\\PadKeyServer.exe</code> 的两个 helper：
 
-- 主服务端以普通用户权限运行
-- 旧的 LocalSystem <code>PadKeySecure</code> helper 服务会被安装脚本移除
-- 默认设置 <code>AllowSecureInput=false</code>
-- UAC、锁屏 PIN、火绒等高权限界面请使用本机键盘、Windows Hello 或远程桌面
+- <code>winsta0\\winlogon</code>：锁屏 PIN 和 UAC 安全桌面
+- <code>winsta0\\default</code>：普通桌面及管理员/火绒等受保护窗口
 
-原因：SYSTEM helper 加普通 WebSocket 认证会让远程 Token 等同于管理员输入能力，
-且用户可写文件曾可被高权限任务加载。安全优先，因此关闭该能力。
+第一次使用或过期后，在电脑托盘右键 PadKey：
+
+    允许安全输入 15 分钟…
+
+会弹出一次 UAC 确认。授权是本地、限时的（最多 15 分钟），过期自动失效；
+菜单里的“关闭安全输入授权”可立即取消。没有本地授权时，平板 Token 不能驱动
+UAC、锁屏或高权限窗口。
+
+安装/更新受保护 broker（需要一次 UAC）：
+
+    powershell -ExecutionPolicy Bypass -File .\scripts\install-secure-service.ps1
+
+说明：
+
+- 主 PadKeyServer 仍以普通用户权限运行
+- 特权 code 只从 Program Files 受保护目录启动
+- 安全输入授权与 WebSocket Token 是两套权限
+- 火绒等软件的自我保护仍可能拒绝 SYSTEM 注入；这属于对方驱动限制，PadKey 不会绕过
+- 锁屏/UAC 期间必须保持本机授权未过期；到期后请在本机重新授权或使用物理键盘/Windows Hello
 
 **假休眠（关闭显示器）**
 

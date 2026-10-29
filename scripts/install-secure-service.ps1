@@ -27,9 +27,15 @@ Copy-Item $SourceExe $InstalledExe -Force
 
 $bin = '"' + $InstalledExe + '" --secure-service'
 $svc = Get-Service PadKeySecure -ErrorAction SilentlyContinue
-if ($svc) { & sc.exe config PadKeySecure binPath= $bin | Out-Null }
-else { & sc.exe create PadKeySecure binPath= $bin start= auto obj= LocalSystem DisplayName= "PadKey Secure Input" | Out-Null }
+if ($svc) {
+    Stop-Service PadKeySecure -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+    & sc.exe delete PadKeySecure | Out-Null
+    Start-Sleep -Seconds 1
+}
+New-Service -Name PadKeySecure -BinaryPathName $bin -StartupType Automatic -DisplayName "PadKey Secure Input" -Description "PadKey protected desktop input broker" | Out-Null
 Start-Service PadKeySecure
 Start-Sleep -Seconds 1
 Get-Service PadKeySecure | Select-Object Name,Status
+if (Get-ScheduledTask -TaskName PadKeyServerElevated -ErrorAction SilentlyContinue) { Start-ScheduledTask -TaskName PadKeyServerElevated }
 Write-Host "LocalSystem 服务现在只运行受保护路径: $InstalledExe" -ForegroundColor Green

@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+﻿﻿[CmdletBinding()]
 param()
 
 $ErrorActionPreference = "Stop"
@@ -40,15 +40,8 @@ $principal = New-ScheduledTaskPrincipal -UserId $identity.Name -LogonType Intera
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
 
-# Remote UAC/lock input is a security boundary. Remove the privileged helper
-# service so the server stays at ordinary-user integrity.
 $svc = Get-Service PadKeySecure -ErrorAction SilentlyContinue
-if ($svc) {
-    Stop-Service PadKeySecure -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 1
-    & sc.exe delete PadKeySecure | Out-Null
-}
-
+if ($svc) { Start-Service PadKeySecure -ErrorAction SilentlyContinue }
 Start-ScheduledTask -TaskName $TaskName
 Write-Host "已安装到受保护目录: $InstallDir" -ForegroundColor Green
 Write-Host "计划任务只运行该目录中的管理员专属文件。" -ForegroundColor Gray

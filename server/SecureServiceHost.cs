@@ -26,6 +26,8 @@ internal static class SecureServiceHost
     private static CancellationTokenSource? _cts;
     private static Process? _helper;
     private static int _helperSession = -1;
+    private static Process? _defaultHelper;
+    private static int _defaultSession = -1;
     private static ServiceMainDelegate? _mainDelegate;
     private static HandlerDelegate? _handlerDelegate;
 
@@ -205,7 +207,7 @@ internal static class SecureServiceHost
             SetStatus(SERVICE_STOP_PENDING, 0);
             _cts.Cancel();
             worker.Join(5000);
-            StopHelper();
+            StopHelpers();
             SetStatus(SERVICE_STOPPED, 0);
             SecureLog.Write("service stopped");
         }
@@ -256,9 +258,15 @@ internal static class SecureServiceHost
                 {
                     if (_helper is null || _helper.HasExited || _helperSession != (int)session)
                     {
-                        StopHelper();
-                        _helper = LaunchHelper((int)session);
+                        if (_helper is { HasExited: false }) { try { _helper.Kill(); } catch { } }
+                        _helper = LaunchHelper((int)session, SecureInputBridge.PipeName, @"winsta0\winlogon", false);
                         _helperSession = _helper is null ? -1 : (int)session;
+                    }
+                    if (_defaultHelper is null || _defaultHelper.HasExited || _defaultSession != (int)session)
+                    {
+                        if (_defaultHelper is { HasExited: false }) { try { _defaultHelper.Kill(); } catch { } }
+                        _defaultHelper = LaunchHelper((int)session, SecureInputBridge.DefaultPipeName, @"winsta0\default", true);
+                        _defaultSession = _defaultHelper is null ? -1 : (int)session;
                     }
                 }
             }
@@ -267,7 +275,7 @@ internal static class SecureServiceHost
         }
     }
 
-    private static Process? LaunchHelper(int session)
+    private static Process? LaunchHelper(int session, string pipeName, string desktop, bool relativeMouse)
     {
         int winlogonPid = 0;
         for (int attempt = 0; attempt < 20 && winlogonPid == 0; attempt++)
@@ -292,13 +300,13 @@ internal static class SecureServiceHost
             var si = new STARTUPINFO
             {
                 cb = Marshal.SizeOf<STARTUPINFO>(),
-                lpDesktop = @"winsta0\winlogon",
+                lpDesktop = desktop,
                 dwFlags = 1,
                 wShowWindow = 0
             };
             if (CreateEnvironmentBlock(out environment, dup, false)) { }
             string exe = Environment.ProcessPath!;
-            string command = "\"" + exe + "\" --secure-helper";
+            string command = "\"" + exe + "\" --secure-helper " + pipeName + " " + desktop + (relativeMouse ? " 1" : " 0");
             uint flags = 0x08000000 | (environment != IntPtr.Zero ? 0x00000400u : 0u);
             bool ok = CreateProcessAsUser(dup, null, command, IntPtr.Zero, IntPtr.Zero, false, flags,
                 environment, Path.GetDirectoryName(exe), ref si, out pi);
@@ -314,7 +322,7 @@ internal static class SecureServiceHost
             CloseHandle(pi.hThread);
             CloseHandle(pi.hProcess);
             pi.hThread = pi.hProcess = IntPtr.Zero;
-            SecureLog.Write("secure helper launched pid=" + pi.dwProcessId + " session=" + session);
+            SecureLog.Write("secure helper launched pid=" + pi.dwProcessId + " session=" + session + " pipe=" + pipeName);
             return Process.GetProcessById(pi.dwProcessId);
         }
         catch (Exception ex) { SecureLog.Write("launch helper: " + ex); return null; }
@@ -329,15 +337,14 @@ internal static class SecureServiceHost
         }
     }
 
-    private static void StopHelper()
+    private static void StopHelpers()
     {
-        try
-        {
-            if (_helper is { HasExited: false }) _helper.Kill();
-        }
-        catch { }
+        try { if (_helper is { HasExited: false }) _helper.Kill(); } catch { }
+        try { if (_defaultHelper is { HasExited: false }) _defaultHelper.Kill(); } catch { }
         _helper = null;
+        _defaultHelper = null;
         _helperSession = -1;
+        _defaultSession = -1;
     }
 
     private static void EnablePrivilege(string name)
