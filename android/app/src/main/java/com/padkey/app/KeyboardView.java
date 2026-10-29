@@ -67,6 +67,7 @@ public class KeyboardView extends View {
     private final float density;
     private float ux, uy, gap, originX, originY;
     private boolean fnHeld;
+    private boolean capsLock;
     private int fnPointer = -1;
     private boolean haptics = true;
     private ConnectionManager connection;
@@ -90,6 +91,11 @@ public class KeyboardView extends View {
 
     public void setHaptics(boolean enabled) {
         this.haptics = enabled;
+    }
+
+    public void setCapsLock(boolean on) {
+        this.capsLock = on;
+        invalidate();
     }
 
     private float dp(float v) { return v * density; }
@@ -313,6 +319,10 @@ public class KeyboardView extends View {
         if (fnHeld && k.fnHid != 0) {
             fillPaint.setColor(0xFF63E3FF);
             canvas.drawCircle(r.right - dp(6), r.top + dp(6), dp(1.5f), fillPaint);
+        }
+        if (capsLock && k.hid == 0x39) {
+            fillPaint.setColor(0xFF63E3FF);
+            canvas.drawCircle(r.right - dp(7), r.top + dp(7), dp(2.4f), fillPaint);
         }
     }
 

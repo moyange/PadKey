@@ -26,6 +26,9 @@ public sealed class PadServer : IAsyncDisposable
     private bool? _lastLocked;
     private long _lastInputAt;
     private bool? _lastFakeSleep;
+    private bool? _lastCaps;
+    private bool? _lastNum;
+    private bool? _lastScroll;
     private SecureInputBridge? _secureInput;
     private DateTime _startedAt = DateTime.Now;
 
@@ -147,7 +150,7 @@ public sealed class PadServer : IAsyncDisposable
                 ClientSession? active = _active;
                 active?.TickRepeats();
 
-                if (active is not null && ticks % 100 == 0)
+                if (active is not null && ticks % 50 == 0)
                 {
                     bool desktopLocked = WorkstationState.IsLocked() || !InputInjector.IsInputDesktopAvailable();
                     bool secure = desktopLocked && WorkstationState.IsLocked() && _secureInput?.IsConnected == true;
@@ -162,6 +165,12 @@ public sealed class PadServer : IAsyncDisposable
                     {
                         _lastFakeSleep = fakeSleep;
                         _ = active.SendAsync(Protocol.FakeSleep(fakeSleep));
+                    }
+                    bool caps = KeyboardLocks.Caps, num = KeyboardLocks.Num, scroll = KeyboardLocks.Scroll;
+                    if (_lastCaps != caps || _lastNum != num || _lastScroll != scroll)
+                    {
+                        _lastCaps = caps; _lastNum = num; _lastScroll = scroll;
+                        _ = active.SendAsync(Protocol.Locks(caps, num, scroll));
                     }
                 }
 
@@ -320,6 +329,7 @@ public sealed class PadServer : IAsyncDisposable
                 DisplayPower.Wake();
                 await session.SendAsync(Protocol.WakeInfo(GetWakeMacs()), ct);
                 await session.SendAsync(Protocol.FakeSleep(PowerControl.IsFakeSleeping), ct);
+                await session.SendAsync(Protocol.Locks(KeyboardLocks.Caps, KeyboardLocks.Num, KeyboardLocks.Scroll), ct);
                 session.Start();
                 await session.ReceiveLoopAsync(ct);
             }

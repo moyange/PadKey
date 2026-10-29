@@ -273,6 +273,11 @@ public class MainActivity extends Activity implements ConnectionManager.Listener
     }
 
     @Override
+    public void onLocks(boolean caps, boolean num, boolean scroll) {
+        runOnUiThread(() -> keyboard.setCapsLock(caps));
+    }
+
+    @Override
     public void onFakeSleep(boolean on) {
         runOnUiThread(() -> {
             boolean changed = fakeSleepKnown && fakeSleeping != on;

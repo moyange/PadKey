@@ -42,6 +42,7 @@ public final class ConnectionManager {
         void onLocked(boolean locked);
         void onWakeInfo(String[] macs);
         void onFakeSleep(boolean on);
+        void onLocks(boolean caps, boolean num, boolean scroll);
         void onPowerResult(boolean ok, String message);
     }
 
@@ -312,6 +313,11 @@ public final class ConnectionManager {
             } else if ("fakeSleep".equals(type)) {
                 boolean on = o.optBoolean("on", false);
                 main.post(() -> listener.onFakeSleep(on));
+            } else if ("locks".equals(type)) {
+                boolean caps = o.optBoolean("caps", false);
+                boolean num = o.optBoolean("num", false);
+                boolean scroll = o.optBoolean("scroll", false);
+                main.post(() -> listener.onLocks(caps, num, scroll));
             } else if ("error".equals(type)) {
                 Log.w(TAG, "server: " + o.optString("message"));
             }

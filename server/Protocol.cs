@@ -66,6 +66,9 @@ internal static class Protocol
     public static string FakeSleep(bool on) =>
         JsonSerializer.Serialize(new { t = "fakeSleep", on }, Json);
 
+    public static string Locks(bool caps, bool num, bool scroll) =>
+        JsonSerializer.Serialize(new { t = "locks", caps, num, scroll }, Json);
+
     public static string Error(string message) =>
         JsonSerializer.Serialize(new { t = "error", message }, Json);
 }
