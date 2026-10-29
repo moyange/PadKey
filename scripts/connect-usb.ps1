@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [int]$Port = 8765,
     [string]$Serial = "",
@@ -25,6 +25,9 @@ if (-not $Adb) {
 
 $Apk = Join-Path $Root "dist\PadKey.apk"
 $ServerExe = Join-Path $Root "dist\PadKeyServer.exe"
+$Token = ""
+$Cfg = Join-Path $env:APPDATA "PadKey\server.json"
+if (Test-Path $Cfg) { try { $Token = (Get-Content -Raw $Cfg | ConvertFrom-Json).Token } catch { } }
 
 function Test-LocalPort([int]$P) {
     $client = New-Object System.Net.Sockets.TcpClient
