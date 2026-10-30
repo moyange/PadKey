@@ -45,6 +45,8 @@ internal sealed class TrayIcon : IDisposable
     private const int ID_EXIT = 1004;
     private const int ID_ARM_SECURE = 1005;
     private const int ID_DISARM_SECURE = 1006;
+    private const int ID_ARM_ELEVATED = 1007;
+    private const int ID_DISARM_ELEVATED = 1008;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct NOTIFYICONDATA
@@ -309,10 +311,14 @@ internal sealed class TrayIcon : IDisposable
                 MF_STRING | (AutoStart.IsEnabled() ? MF_CHECKED : MF_UNCHECKED),
                 new IntPtr(ID_AUTOSTART), "开机自启");
             AppendMenu(menu, MF_SEPARATOR, IntPtr.Zero, null);
-            if (SecureArm.IsArmed)
-                AppendMenu(menu, MF_STRING, new IntPtr(ID_DISARM_SECURE), "关闭安全输入授权");
+            if (SecureArm.IsElevatedArmed)
+                AppendMenu(menu, MF_STRING, new IntPtr(ID_DISARM_ELEVATED), "关闭高权限窗口授权");
             else
-                AppendMenu(menu, MF_STRING, new IntPtr(ID_ARM_SECURE), "允许安全输入 15 分钟…");
+                AppendMenu(menu, MF_STRING, new IntPtr(ID_ARM_ELEVATED), "允许高权限窗口输入 12 小时…");
+            if (SecureArm.IsSecureArmed)
+                AppendMenu(menu, MF_STRING, new IntPtr(ID_DISARM_SECURE), "关闭安全桌面授权");
+            else
+                AppendMenu(menu, MF_STRING, new IntPtr(ID_ARM_SECURE), "允许安全桌面输入 15 分钟…");
             AppendMenu(menu, MF_SEPARATOR, IntPtr.Zero, null);
             AppendMenu(menu, MF_STRING, new IntPtr(ID_EXIT), "退出 PadKey Server");
 
@@ -349,6 +355,12 @@ internal sealed class TrayIcon : IDisposable
                 break;
             case ID_DISARM_SECURE:
                 RunElevated("--disarm-secure");
+                break;
+            case ID_ARM_ELEVATED:
+                RunElevated("--arm-elevated 720");
+                break;
+            case ID_DISARM_ELEVATED:
+                RunElevated("--disarm-elevated");
                 break;
             case ID_EXIT:
                 _exit();

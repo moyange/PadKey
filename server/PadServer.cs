@@ -392,6 +392,8 @@ public sealed class PadServer : IAsyncDisposable
                 workstationLocked = WorkstationState.IsLocked(),
                 secureInput = (_secureWinlogon?.IsConnected == true) || (_secureDefault?.IsConnected == true),
                 secureArmed = SecureArm.IsArmed,
+                secureDesktopArmed = SecureArm.IsSecureArmed,
+                elevatedArmed = SecureArm.IsElevatedArmed,
                 fakeSleep = PowerControl.IsFakeSleeping,
                 uptimeSeconds = (int)(DateTime.Now - _startedAt).TotalSeconds
             });

@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace PadKey;
 
-/// <summary>Locally armed, time-limited authorization for protected desktop input.</summary>
+/// <summary>Locally armed authorization, split by privilege scope.</summary>
 internal static class SecureArm
 {
     private static readonly string Dir = Path.Combine(
@@ -21,33 +21,47 @@ internal static class SecureArm
         catch { return false; }
     }
 
-    public static bool IsArmed => RemainingSeconds > 0;
+    public static bool IsArmed => IsSecureArmed || IsElevatedArmed;
+    public static bool IsSecureArmed => RemainingSeconds(secureScope: true) > 0;
+    public static bool IsElevatedArmed => RemainingSeconds(secureScope: false) > 0;
 
-    public static int RemainingSeconds
+    public static int RemainingSecureSeconds => RemainingSeconds(secureScope: true);
+    public static int RemainingElevatedSeconds => RemainingSeconds(secureScope: false);
+
+    private static int RemainingSeconds(bool secureScope)
     {
-        get
+        try
         {
-            try
-            {
-                if (!File.Exists(FilePath)) return 0;
-                var state = JsonSerializer.Deserialize<State>(File.ReadAllText(FilePath));
-                if (state is null) return 0;
-                int seconds = (int)Math.Ceiling((state.ExpiresUtc - DateTime.UtcNow).TotalSeconds);
-                return Math.Max(0, seconds);
-            }
-            catch { return 0; }
+            if (!File.Exists(FilePath)) return 0;
+            var state = JsonSerializer.Deserialize<State>(File.ReadAllText(FilePath));
+            if (state is null) return 0;
+            DateTime expires = secureScope ? state.SecureUntilUtc : state.ElevatedUntilUtc;
+            return Math.Max(0, (int)Math.Ceiling((expires - DateTime.UtcNow).TotalSeconds));
         }
+        catch { return 0; }
     }
 
-    public static bool Arm(int minutes)
+    /// <summary>secureScope=true: Winlogon/UAC lease (short). false: elevated-app lease.</summary>
+    public static bool Arm(int minutes, bool secureScope)
     {
         if (!IsAdministrator()) return false;
+        int max = secureScope ? 60 : 720;
         if (minutes < 1) minutes = 1;
-        if (minutes > 120) minutes = 120;
+        if (minutes > max) minutes = max;
         try
         {
             EnsureDirectory();
-            var state = new State { ExpiresUtc = DateTime.UtcNow.AddMinutes(minutes) };
+            State state;
+            try
+            {
+                state = File.Exists(FilePath)
+                    ? JsonSerializer.Deserialize<State>(File.ReadAllText(FilePath)) ?? new State()
+                    : new State();
+            }
+            catch { state = new State(); }
+
+            if (secureScope) state.SecureUntilUtc = DateTime.UtcNow.AddMinutes(minutes);
+            else state.ElevatedUntilUtc = DateTime.UtcNow.AddMinutes(minutes);
             File.WriteAllText(FilePath, JsonSerializer.Serialize(state));
             SetFileAcl();
             return true;
@@ -59,12 +73,30 @@ internal static class SecureArm
         }
     }
 
-    public static bool Disarm()
+    public static bool Disarm(bool secureScope)
     {
         if (!IsAdministrator()) return false;
-        try { if (File.Exists(FilePath)) File.Delete(FilePath); return true; }
+        try
+        {
+            if (!File.Exists(FilePath)) return true;
+            var state = JsonSerializer.Deserialize<State>(File.ReadAllText(FilePath)) ?? new State();
+            if (secureScope) state.SecureUntilUtc = DateTime.MinValue;
+            else state.ElevatedUntilUtc = DateTime.MinValue;
+            if (state.SecureUntilUtc <= DateTime.UtcNow && state.ElevatedUntilUtc <= DateTime.UtcNow)
+            {
+                File.Delete(FilePath);
+            }
+            else
+            {
+                File.WriteAllText(FilePath, JsonSerializer.Serialize(state));
+                SetFileAcl();
+            }
+            return true;
+        }
         catch { return false; }
     }
+
+    public static bool Disarm() => Disarm(secureScope: true) && Disarm(secureScope: false);
 
     private static void EnsureDirectory()
     {
@@ -96,5 +128,9 @@ internal static class SecureArm
         s.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid, null), rights,
             AccessControlType.Allow));
 
-    private sealed class State { public DateTime ExpiresUtc { get; set; } }
+    private sealed class State
+    {
+        public DateTime SecureUntilUtc { get; set; }
+        public DateTime ElevatedUntilUtc { get; set; }
+    }
 }

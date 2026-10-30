@@ -24,6 +24,7 @@ internal static class SecureInputHelper
     public static void Run(string pipeName = SecureInputBridge.PipeName, bool relativeMouse = false)
     {
         if (string.IsNullOrWhiteSpace(pipeName)) pipeName = SecureInputBridge.PipeName;
+        bool secureScope = pipeName == SecureInputBridge.PipeName;
         SecureLog.Write("secure helper starting; pipe=" + pipeName + "; desktop=" + DesktopName());
         while (true)
         {
@@ -37,7 +38,7 @@ internal static class SecureInputHelper
                 string? line;
                 while ((line = reader.ReadLine()) is not null)
                 {
-                    if (!SecureArm.IsArmed)
+                    if (!(secureScope ? SecureArm.IsSecureArmed : SecureArm.IsElevatedArmed))
                     {
                         InputInjector.ReleaseAll();
                         continue;

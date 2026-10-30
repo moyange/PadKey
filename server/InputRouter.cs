@@ -29,10 +29,10 @@ internal sealed class InputRouter : IInputSink
         bool secureDesktop = !InputInjector.IsInputDesktopAvailable();
         if (secureDesktop)
         {
-            if (!SecureArm.IsArmed) return InputRoute.Locked;
+            if (!SecureArm.IsSecureArmed) return InputRoute.Locked;
             return _winlogon is { IsConnected: true } ? InputRoute.Winlogon : InputRoute.Locked;
         }
-        if (!SecureArm.IsArmed) return InputRoute.Normal;
+        if (!SecureArm.IsElevatedArmed) return InputRoute.Normal;
         return _default is { IsConnected: true } ? InputRoute.Default : InputRoute.Normal;
     }
 

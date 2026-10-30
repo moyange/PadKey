@@ -29,6 +29,22 @@ internal static class Program
             return 2;
         }
 
+        if (cfg.ArmElevatedMinutes > 0)
+        {
+            if (!SecureArm.IsAdministrator())
+            {
+                Log.Err("高权限窗口授权需要管理员权限，请从托盘菜单确认 UAC。");
+                return 1;
+            }
+            if (!SecureArm.Arm(cfg.ArmElevatedMinutes, secureScope: false))
+            {
+                Log.Err("高权限窗口授权失败。");
+                return 1;
+            }
+            Log.Ok($"高权限窗口输入已授权 {cfg.ArmElevatedMinutes} 分钟。");
+            return 0;
+        }
+
         if (cfg.ArmSecureMinutes > 0)
         {
             if (!SecureArm.IsAdministrator())
@@ -36,12 +52,24 @@ internal static class Program
                 Log.Err("安全输入授权需要管理员权限，请从托盘菜单确认 UAC。");
                 return 1;
             }
-            if (!SecureArm.Arm(cfg.ArmSecureMinutes))
+            if (!SecureArm.Arm(cfg.ArmSecureMinutes, secureScope: true))
             {
                 Log.Err("安全输入授权失败。");
                 return 1;
             }
             Log.Ok($"安全输入已授权 {cfg.ArmSecureMinutes} 分钟。");
+            return 0;
+        }
+
+        if (cfg.DisarmElevated)
+        {
+            if (!SecureArm.IsAdministrator())
+            {
+                Log.Err("关闭高权限窗口授权需要管理员权限。");
+                return 1;
+            }
+            SecureArm.Disarm(secureScope: false);
+            Log.Ok("高权限窗口授权已关闭。");
             return 0;
         }
 
@@ -52,8 +80,8 @@ internal static class Program
                 Log.Err("关闭安全输入授权需要管理员权限。");
                 return 1;
             }
-            SecureArm.Disarm();
-            Log.Ok("安全输入授权已关闭。");
+            SecureArm.Disarm(secureScope: true);
+            Log.Ok("安全桌面授权已关闭。");
             return 0;
         }
 
